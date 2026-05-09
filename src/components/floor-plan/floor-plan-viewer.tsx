@@ -462,12 +462,10 @@ function PdfRenderer({
     async function renderPdf() {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        if (typeof window !== "undefined") {
-          const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-          pdfjsLib.GlobalWorkerOptions.workerSrc = isMobile
-            ? ""
-            : "/pdf.worker.min.mjs";
-        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url
+        ).href;
 
         const loadingTask = pdfjsLib.getDocument(pdfUrl);
         const pdf = await loadingTask.promise;
