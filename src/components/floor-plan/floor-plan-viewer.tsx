@@ -145,35 +145,60 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
     setZoom((z) => Math.max(0.1, Math.min(4, z + delta)));
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    if (e.touches.length === 1) {
-      setIsPanning(true);
-      setPanStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
-    } else if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      lastTouchDistance.current = Math.sqrt(dx * dx + dy * dy);
-    }
-  }
+  // Touch handlers registrados como nativos (no-passive) para poder hacer preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-  function handleTouchMove(e: React.TouchEvent) {
-    e.preventDefault();
-    if (e.touches.length === 1 && isPanning) {
-      setPan({ x: e.touches[0].clientX - panStart.x, y: e.touches[0].clientY - panStart.y });
-    } else if (e.touches.length === 2 && lastTouchDistance.current !== null) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const scale = dist / lastTouchDistance.current;
-      setZoom((z) => Math.max(0.1, Math.min(4, z * scale)));
-      lastTouchDistance.current = dist;
-    }
-  }
+    let panningTouch = false;
+    let panStartX = 0;
+    let panStartY = 0;
 
-  function handleTouchEnd() {
-    setIsPanning(false);
-    lastTouchDistance.current = null;
-  }
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length === 1) {
+        panningTouch = true;
+        panStartX = e.touches[0].clientX;
+        panStartY = e.touches[0].clientY;
+      } else if (e.touches.length === 2) {
+        panningTouch = false;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTouchDistance.current = Math.sqrt(dx * dx + dy * dy);
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length === 1 && panningTouch) {
+        const dx = e.touches[0].clientX - panStartX;
+        const dy = e.touches[0].clientY - panStartY;
+        panStartX = e.touches[0].clientX;
+        panStartY = e.touches[0].clientY;
+        setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
+      } else if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const scale = dist / lastTouchDistance.current;
+        setZoom((z) => Math.max(0.1, Math.min(4, z * scale)));
+        lastTouchDistance.current = dist;
+      }
+    }
+
+    function onTouchEnd() {
+      panningTouch = false;
+      lastTouchDistance.current = null;
+    }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
 
   function resetView() {
     fitToContainer(pdfSize.width, pdfSize.height);
@@ -290,9 +315,6 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
         >
           {/* PDF centrado con posición absoluta — más confiable que transform en 100%x100% */}
           <div
@@ -440,7 +462,7 @@ function PdfRenderer({
     async function renderPdf() {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
         const loadingTask = pdfjsLib.getDocument(pdfUrl);
         const pdf = await loadingTask.promise;
