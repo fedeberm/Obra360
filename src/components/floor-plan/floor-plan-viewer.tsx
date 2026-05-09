@@ -285,7 +285,7 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
               {imageLoaded && floor.camera_points?.map((point) => (
                 <FloorPoint
                   key={point.id}
-                  point={point}
+                  point={point as FullPoint}
                   isSelected={selectedPoint?.id === point.id}
                   isEditing={mode === "add"}
                   onClick={(e) => {
