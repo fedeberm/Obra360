@@ -455,6 +455,7 @@ function PdfRenderer({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ width: 900, height: 636 });
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -462,10 +463,7 @@ function PdfRenderer({
     async function renderPdf() {
       try {
         const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-          "pdfjs-dist/build/pdf.worker.min.mjs",
-          import.meta.url
-        ).href;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         const loadingTask = pdfjsLib.getDocument(pdfUrl);
         const pdf = await loadingTask.promise;
@@ -485,9 +483,12 @@ function PdfRenderer({
         const ctx = canvas.getContext("2d")!;
         await page.render({ canvasContext: ctx, viewport }).promise;
         if (!cancelled) onLoad(viewport.width, viewport.height);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error renderizando PDF:", err);
-        if (!cancelled) onLoad(900, 636);
+        if (!cancelled) {
+          setRenderError(err?.message ?? String(err));
+          onLoad(900, 636);
+        }
       }
     }
 
@@ -502,6 +503,11 @@ function PdfRenderer({
       style={{ width: size.width, height: size.height }}
     >
       <canvas ref={canvasRef} className="block" />
+      {renderError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-red-50 p-4">
+          <p className="text-xs text-red-600 text-center break-all">{renderError}</p>
+        </div>
+      )}
     </div>
   );
 }
