@@ -22,7 +22,8 @@ export function formatFileSize(bytes: number): string {
 }
 
 export function getShareUrl(token: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   return `${base}/share/${token}`;
 }
 

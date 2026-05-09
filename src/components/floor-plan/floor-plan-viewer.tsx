@@ -33,6 +33,7 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const lastTouchDistance = useRef<number | null>(null);
 
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const selectedPoint = floor.camera_points?.find((p) => p.id === selectedPointId) ?? null;
@@ -142,6 +143,36 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     setZoom((z) => Math.max(0.1, Math.min(4, z + delta)));
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setPanStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDistance.current = Math.sqrt(dx * dx + dy * dy);
+    }
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    e.preventDefault();
+    if (e.touches.length === 1 && isPanning) {
+      setPan({ x: e.touches[0].clientX - panStart.x, y: e.touches[0].clientY - panStart.y });
+    } else if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / lastTouchDistance.current;
+      setZoom((z) => Math.max(0.1, Math.min(4, z * scale)));
+      lastTouchDistance.current = dist;
+    }
+  }
+
+  function handleTouchEnd() {
+    setIsPanning(false);
+    lastTouchDistance.current = null;
   }
 
   function resetView() {
@@ -259,6 +290,9 @@ export function FloorPlanViewer({ floor, projectId, isEditable }: FloorPlanViewe
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {/* PDF centrado con posición absoluta — más confiable que transform en 100%x100% */}
           <div
