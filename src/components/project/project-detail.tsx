@@ -11,7 +11,7 @@ import { FloorPlanViewer } from "@/components/floor-plan/floor-plan-viewer";
 import { FloorManager } from "@/components/project/floor-manager";
 import { SharePanel } from "@/components/project/share-panel";
 import { createClient } from "@/lib/supabase/client";
-import { ArrowLeft, Share2, Layers, Settings, ImageIcon, Upload, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Share2, Layers, Settings, ImageIcon, Upload, Loader2, Save, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -46,6 +46,7 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
   const router = useRouter();
 
   // Cover state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [coverUrl, setCoverUrl] = useState(project.cover_image_url);
   const [coverPosition, setCoverPosition] = useState(project.cover_position ?? "50% 50%");
@@ -182,28 +183,50 @@ export function ProjectDetail({ project }: ProjectDetailProps) {
         {activeTab === "planos" && (
           <div className="flex h-full">
             {project.floors.length > 0 && (
-              <div className="w-48 bg-white border-r p-3 flex flex-col gap-1 overflow-y-auto flex-shrink-0">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 px-1">
-                  Plantas
-                </p>
-                {project.floors.map((floor) => (
+              <>
+                {/* Sidebar */}
+                <div className={cn(
+                  "bg-white border-r flex flex-col overflow-y-auto flex-shrink-0 transition-all duration-200",
+                  sidebarOpen ? "w-48" : "w-10"
+                )}>
+                  {/* Toggle button */}
                   <button
-                    key={floor.id}
-                    onClick={() => setSelectedFloorId(floor.id)}
-                    className={cn(
-                      "text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full",
-                      selectedFloor?.id === floor.id
-                        ? "bg-primary text-white"
-                        : "text-slate-600 hover:bg-slate-100"
-                    )}
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 flex-shrink-0 border-b"
+                    title={sidebarOpen ? "Ocultar plantas" : "Ver plantas"}
                   >
-                    <div className="truncate">{floor.name}</div>
-                    <div className={cn("text-xs mt-0.5", selectedFloor?.id === floor.id ? "text-blue-100" : "text-slate-400")}>
-                      {floor.camera_points?.length ?? 0} punto{(floor.camera_points?.length ?? 0) !== 1 ? "s" : ""}
-                    </div>
+                    {sidebarOpen
+                      ? <PanelLeftClose className="w-4 h-4" />
+                      : <PanelLeftOpen className="w-4 h-4" />
+                    }
                   </button>
-                ))}
-              </div>
+
+                  {sidebarOpen && (
+                    <div className="p-3 flex flex-col gap-1 flex-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 px-1">
+                        Plantas
+                      </p>
+                      {project.floors.map((floor) => (
+                        <button
+                          key={floor.id}
+                          onClick={() => setSelectedFloorId(floor.id)}
+                          className={cn(
+                            "text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full",
+                            selectedFloor?.id === floor.id
+                              ? "bg-primary text-white"
+                              : "text-slate-600 hover:bg-slate-100"
+                          )}
+                        >
+                          <div className="truncate">{floor.name}</div>
+                          <div className={cn("text-xs mt-0.5", selectedFloor?.id === floor.id ? "text-blue-100" : "text-slate-400")}>
+                            {floor.camera_points?.length ?? 0} punto{(floor.camera_points?.length ?? 0) !== 1 ? "s" : ""}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
             <div className="flex-1">
               {selectedFloor ? (
