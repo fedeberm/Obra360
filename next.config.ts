@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async headers() {
+    return [
+      {
+        source: "/pdf.worker.min.mjs",
+        headers: [{ key: "Content-Type", value: "application/javascript" }],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
