@@ -53,12 +53,36 @@ export function GridOverlay360({
     obs.observe(el);
     setDims({ w: el.clientWidth, h: el.clientHeight });
     return () => obs.disconnect();
-  }, []);
+  }, [visible]); // re-run when visible changes so we get dimensions once rendered
 
-  function handleOverlayClick(e: React.MouseEvent<SVGSVGElement>) {
+  // Block PSV touch/pointer events during calibration
+  useEffect(() => {
+    const el = overlayRef.current?.parentElement;
+    if (!el) return;
+    if (calibMode) {
+      el.style.touchAction = "none";
+    } else {
+      el.style.touchAction = "";
+    }
+  }, [calibMode]);
+
+  function getPointFromEvent(e: React.MouseEvent | React.TouchEvent): Point | null {
+    const rect = overlayRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    if ("touches" in e) {
+      const t = e.touches[0] ?? e.changedTouches[0];
+      if (!t) return null;
+      return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    }
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+  }
+
+  function handleOverlayPointer(e: React.MouseEvent | React.TouchEvent) {
     if (!calibMode) return;
-    const rect = overlayRef.current!.getBoundingClientRect();
-    const pt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    e.stopPropagation();
+    e.preventDefault();
+    const pt = getPointFromEvent(e);
+    if (!pt) return;
     if (!point1) {
       setPoint1(pt);
     } else if (!point2) {
@@ -99,7 +123,7 @@ export function GridOverlay360({
   function buildGrid() {
     if (!calibration || dims.w === 0) return null;
     const interval = calibration.cellSizeMeters * calibration.pixelsPerMeter;
-    if (interval < 5) return null; // too dense
+    if (interval < 5) return null;
 
     const cx = dims.w / 2;
     const cy = dims.h / 2;
@@ -152,37 +176,42 @@ export function GridOverlay360({
             pointerEvents: calibMode ? "auto" : "none",
             cursor: calibMode ? "crosshair" : "default",
           }}
-          onClick={calibMode ? handleOverlayClick : undefined}
+          onClick={calibMode ? handleOverlayPointer : undefined}
+          onTouchEnd={calibMode ? handleOverlayPointer : undefined}
         >
           {grid?.lines}
           {grid?.labels}
 
           {/* Calibration points */}
           {calibMode && point1 && (
-            <circle cx={point1.x} cy={point1.y} r={6} fill="rgba(255,200,0,0.9)" stroke="white" strokeWidth="2" />
+            <circle cx={point1.x} cy={point1.y} r={8} fill="rgba(255,200,0,0.9)" stroke="white" strokeWidth="2" />
           )}
           {calibMode && point2 && (
             <>
-              <circle cx={point2.x} cy={point2.y} r={6} fill="rgba(255,200,0,0.9)" stroke="white" strokeWidth="2" />
+              <circle cx={point2.x} cy={point2.y} r={8} fill="rgba(255,200,0,0.9)" stroke="white" strokeWidth="2" />
               <line x1={point1!.x} y1={point1!.y} x2={point2.x} y2={point2.y} stroke="rgba(255,200,0,0.9)" strokeWidth="2" strokeDasharray="6,3" />
             </>
           )}
         </svg>
       )}
 
-      {/* Calibration mode banner */}
+      {/* Calibration mode instruction banner */}
       {calibMode && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-black/80 backdrop-blur rounded-full px-4 py-2 text-yellow-400 text-sm pointer-events-none">
-          {!point1 ? "Hacé clic en el punto A" : !point2 ? "Hacé clic en el punto B" : "Ingresá la distancia real abajo"}
+        <div className="absolute left-1/2 -translate-x-1/2 z-50 bg-black/85 backdrop-blur rounded-full px-5 py-2.5 text-yellow-400 text-sm font-medium pointer-events-none shadow-lg"
+          style={{ top: "80px" }}
+        >
+          {!point1 ? "Tocá el punto A en la imagen" : !point2 ? "Tocá el punto B en la imagen" : "Ingresá la distancia real en el panel →"}
         </div>
       )}
 
-      {/* Panel de control */}
+      {/* Panel de control — fixed to viewport so it's never hidden under the header */}
       {showPanel && (
-        <div className="absolute top-16 right-4 z-30 bg-black/80 backdrop-blur rounded-xl border border-white/10 p-4 w-64 space-y-4">
+        <div className="fixed z-[60] bg-black/85 backdrop-blur rounded-xl border border-white/10 p-4 w-64 space-y-4 shadow-2xl"
+          style={{ top: "72px", right: "16px" }}
+        >
           <div className="flex items-center justify-between">
             <p className="text-white text-sm font-semibold">Grilla de referencia</p>
-            <button onClick={onClosePanel} className="text-white/50 hover:text-white">
+            <button onClick={onClosePanel} className="text-white/50 hover:text-white p-1">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -200,44 +229,52 @@ export function GridOverlay360({
             {visible ? "Ocultar grilla" : "Mostrar grilla"}
           </button>
 
+          {/* Sin calibración: aviso */}
+          {!calibration && (
+            <p className="text-white/50 text-xs text-center">
+              Calibrá primero para ver la grilla
+            </p>
+          )}
+
           {/* Celda */}
-          <div className="space-y-1.5">
-            <p className="text-white/60 text-xs">Tamaño de celda</p>
-            <div className="flex gap-1.5 flex-wrap">
-              {CELL_SIZES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    setCellSize(s);
-                    updateDisplayProps(s, undefined);
-                  }}
-                  className={cn(
-                    "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                    cellSize === s
-                      ? "bg-yellow-400 text-black border-yellow-400"
-                      : "text-white/70 border-white/20 hover:border-white/50"
-                  )}
-                >
-                  {s}m
-                </button>
-              ))}
+          {calibration && (
+            <div className="space-y-1.5">
+              <p className="text-white/60 text-xs">Tamaño de celda</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {CELL_SIZES.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setCellSize(s); updateDisplayProps(s, undefined); }}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      cellSize === s
+                        ? "bg-yellow-400 text-black border-yellow-400"
+                        : "text-white/70 border-white/20 hover:border-white/50"
+                    )}
+                  >
+                    {s}m
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Opacidad */}
-          <div className="space-y-1.5">
-            <p className="text-white/60 text-xs">Opacidad</p>
-            <input
-              type="range" min="0.1" max="1" step="0.05"
-              value={opacity}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                setOpacity(v);
-                updateDisplayProps(undefined, v);
-              }}
-              className="w-full accent-yellow-400"
-            />
-          </div>
+          {calibration && (
+            <div className="space-y-1.5">
+              <p className="text-white/60 text-xs">Opacidad</p>
+              <input
+                type="range" min="0.1" max="1" step="0.05"
+                value={opacity}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setOpacity(v);
+                  updateDisplayProps(undefined, v);
+                }}
+                className="w-full accent-yellow-400"
+              />
+            </div>
+          )}
 
           {/* Calibración */}
           <div className="border-t border-white/10 pt-3 space-y-2">
@@ -245,13 +282,16 @@ export function GridOverlay360({
             {!calibMode ? (
               <button
                 onClick={() => { setCalibMode(true); setPoint1(null); setPoint2(null); }}
-                className="w-full flex items-center justify-center gap-2 bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 text-xs py-2 rounded-lg border border-yellow-400/30 transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 text-xs py-2.5 rounded-lg border border-yellow-400/30 transition-colors"
               >
                 <Crosshair className="w-3.5 h-3.5" />
                 {calibration ? "Recalibrar" : "Calibrar ahora"}
               </button>
             ) : (
               <div className="space-y-2">
+                <p className="text-yellow-400 text-xs">
+                  {!point1 ? "→ Tocá punto A en la foto" : !point2 ? "→ Tocá punto B en la foto" : "→ Ingresá la distancia real"}
+                </p>
                 {point1 && point2 && (
                   <div className="flex gap-2 items-center">
                     <input
