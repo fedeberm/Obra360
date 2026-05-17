@@ -60,9 +60,14 @@ export interface CameraPoint {
 }
 
 export interface GridCalibration {
-  pixelsPerMeter: number;
   cellSizeMeters: number;
   opacity: number;
+  // Spherical calibration — required for the grid to render
+  metersPerRad?: number;
+  anchorYaw?: number;
+  anchorPitch?: number;
+  // Legacy pixel-based (deprecated, kept for JSON compat)
+  pixelsPerMeter?: number;
 }
 
 export interface PhotoVisit {

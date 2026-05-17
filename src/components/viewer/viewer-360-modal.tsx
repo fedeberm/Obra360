@@ -24,6 +24,7 @@ export function Viewer360Modal({
 }: Viewer360ModalProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const psvRef = useRef<any>(null);
+  const [psv, setPsv] = useState<any>(null); // triggers re-render once viewer is ready
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(
     allVisits.findIndex((v) => v.id === visit.id)
@@ -60,7 +61,7 @@ export function Viewer360Modal({
             loadError: "No se pudo cargar el panorama",
           } as any,
         });
-        viewer.addEventListener("ready", () => setLoading(false), { once: true });
+        viewer.addEventListener("ready", () => { setLoading(false); setPsv(viewer); }, { once: true });
         psvRef.current = viewer;
       } catch (err) {
         console.error("Error inicializando visor 360:", err);
@@ -201,6 +202,7 @@ export function Viewer360Modal({
           visible={gridVisible}
           showPanel={showGridPanel}
           calibration={calibration}
+          viewer={psv}
           onCalibrationSave={handleCalibrationSave}
           onToggleGrid={() => setGridVisible((v) => !v)}
           onClosePanel={() => setShowGridPanel(false)}
