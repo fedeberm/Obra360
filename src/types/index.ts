@@ -59,6 +59,12 @@ export interface CameraPoint {
   latest_visit?: PhotoVisit | null;
 }
 
+export interface GridCalibration {
+  pixelsPerMeter: number;
+  cellSizeMeters: number;
+  opacity: number;
+}
+
 export interface PhotoVisit {
   id: string;
   camera_point_id: string;
@@ -69,6 +75,7 @@ export interface PhotoVisit {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  grid_calibration: GridCalibration | null;
 }
 
 // Forms

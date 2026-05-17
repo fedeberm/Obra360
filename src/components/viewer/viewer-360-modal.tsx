@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PhotoVisit } from "@/types";
-import { Button } from "@/components/ui/button";
+import { PhotoVisit, GridCalibration } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { GridOverlay360 } from "@/components/viewer/grid-overlay-360";
 import {
   X, ChevronLeft, ChevronRight, Calendar, MessageSquare,
-  Maximize2, Minimize2, RotateCcw
+  Maximize2, Minimize2, RotateCcw, Ruler
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,19 +29,20 @@ export function Viewer360Modal({
     allVisits.findIndex((v) => v.id === visit.id)
   );
   const [loading, setLoading] = useState(true);
+  const [gridVisible, setGridVisible] = useState(false);
+  const [showGridPanel, setShowGridPanel] = useState(false);
+  const [calibration, setCalibration] = useState<GridCalibration | null>(
+    allVisits[allVisits.findIndex((v) => v.id === visit.id)]?.grid_calibration ?? null
+  );
 
-  // Inicializar Photo Sphere Viewer
   useEffect(() => {
     let viewer: any = null;
 
     async function initViewer() {
       if (!viewerRef.current) return;
-
       try {
         const { Viewer } = await import("@photo-sphere-viewer/core");
-
         setLoading(true);
-
         viewer = new Viewer({
           container: viewerRef.current,
           panorama: allVisits[currentIndex].photo_url,
@@ -50,22 +52,14 @@ export function Viewer360Modal({
           touchmoveTwoFingers: false,
           mousewheelCtrlKey: false,
           lang: {
-            zoom: "Zoom",
-            zoomIn: "Acercar",
-            zoomOut: "Alejar",
-            moveUp: "Arriba",
-            moveDown: "Abajo",
-            moveLeft: "Izquierda",
-            moveRight: "Derecha",
-            download: "Descargar",
-            fullscreen: "Pantalla completa",
-            menu: "Menú",
+            zoom: "Zoom", zoomIn: "Acercar", zoomOut: "Alejar",
+            moveUp: "Arriba", moveDown: "Abajo", moveLeft: "Izquierda", moveRight: "Derecha",
+            download: "Descargar", fullscreen: "Pantalla completa", menu: "Menú",
             twoFingers: "Usá dos dedos para navegar",
             ctrlZoom: "Ctrl + scroll para hacer zoom",
             loadError: "No se pudo cargar el panorama",
           } as any,
         });
-
         viewer.addEventListener("ready", () => setLoading(false), { once: true });
         psvRef.current = viewer;
       } catch (err) {
@@ -75,7 +69,6 @@ export function Viewer360Modal({
     }
 
     initViewer();
-
     return () => {
       if (psvRef.current) {
         try { psvRef.current.destroy(); } catch {}
@@ -84,15 +77,25 @@ export function Viewer360Modal({
     };
   }, []);
 
-  // Cambiar panorama sin reiniciar el viewer
   useEffect(() => {
     if (!psvRef.current) return;
     setLoading(true);
-    psvRef.current
-      .setPanorama(allVisits[currentIndex].photo_url)
+    psvRef.current.setPanorama(allVisits[currentIndex].photo_url)
       .then(() => setLoading(false))
       .catch(() => setLoading(false));
+    setCalibration(allVisits[currentIndex]?.grid_calibration ?? null);
   }, [currentIndex]);
+
+  async function handleCalibrationSave(cal: GridCalibration) {
+    setCalibration(cal);
+    setGridVisible(true);
+    try {
+      const supabase = createClient();
+      await supabase.from("photo_visits").update({ grid_calibration: cal }).eq("id", allVisits[currentIndex].id);
+    } catch (err) {
+      console.error("Error guardando calibración:", err);
+    }
+  }
 
   function goPrev() {
     if (currentIndex < allVisits.length - 1) {
@@ -111,9 +114,7 @@ export function Viewer360Modal({
   }
 
   function resetNorth() {
-    if (psvRef.current) {
-      psvRef.current.rotate({ longitude: 0, latitude: 0 });
-    }
+    if (psvRef.current) psvRef.current.rotate({ longitude: 0, latitude: 0 });
   }
 
   function toggleFullscreen() {
@@ -126,12 +127,12 @@ export function Viewer360Modal({
     }
   }
 
-  // Cerrar con Escape
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft") goPrev();
       if (e.key === "ArrowRight") goNext();
+      if (e.key === "g" || e.key === "G") setGridVisible((v) => !v);
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -144,7 +145,7 @@ export function Viewer360Modal({
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4 flex items-center justify-between">
+      <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4 flex items-center justify-between">
         <div>
           <h2 className="text-white font-semibold text-lg">{pointName}</h2>
           <div className="flex items-center gap-3 mt-1">
@@ -165,25 +166,27 @@ export function Viewer360Modal({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Botón grilla */}
           <button
-            onClick={resetNorth}
-            className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Resetear vista"
+            onClick={() => {
+              if (!gridVisible) { setGridVisible(true); setShowGridPanel(true); }
+              else setShowGridPanel((v) => !v);
+            }}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              gridVisible ? "text-yellow-400 bg-white/10" : "text-white/70 hover:text-white hover:bg-white/10"
+            )}
+            title="Grilla de referencia (G)"
           >
+            <Ruler className="w-4 h-4" />
+          </button>
+          <button onClick={resetNorth} className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors" title="Resetear vista">
             <RotateCcw className="w-4 h-4" />
           </button>
-          <button
-            onClick={toggleFullscreen}
-            className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          >
+          <button onClick={toggleFullscreen} className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors" title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}>
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Cerrar"
-          >
+          <button onClick={onClose} className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors" title="Cerrar">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -193,9 +196,18 @@ export function Viewer360Modal({
       <div className="flex-1 relative">
         <div ref={viewerRef} className="w-full h-full" />
 
-        {/* Loading overlay */}
+        {/* Grid overlay */}
+        <GridOverlay360
+          visible={gridVisible}
+          showPanel={showGridPanel}
+          calibration={calibration}
+          onCalibrationSave={handleCalibrationSave}
+          onToggleGrid={() => setGridVisible((v) => !v)}
+          onClosePanel={() => setShowGridPanel(false)}
+        />
+
         {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
             <div className="text-white text-center">
               <div className="w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-3" />
               <p className="text-sm text-white/70">Cargando panorama...</p>
@@ -203,13 +215,8 @@ export function Viewer360Modal({
           </div>
         )}
 
-        {/* Navegación entre fechas */}
         {hasPrev && (
-          <button
-            onClick={goPrev}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors group"
-            title="Visita anterior"
-          >
+          <button onClick={goPrev} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors group" title="Visita anterior">
             <ChevronLeft className="w-5 h-5" />
             <span className="absolute left-14 top-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
               {allVisits[currentIndex + 1] ? formatDate(allVisits[currentIndex + 1].taken_at) : ""}
@@ -217,11 +224,7 @@ export function Viewer360Modal({
           </button>
         )}
         {hasNext && (
-          <button
-            onClick={goNext}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors group"
-            title="Visita siguiente"
-          >
+          <button onClick={goNext} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors group" title="Visita siguiente">
             <ChevronRight className="w-5 h-5" />
             <span className="absolute right-14 top-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
               {allVisits[currentIndex - 1] ? formatDate(allVisits[currentIndex - 1].taken_at) : ""}
@@ -230,7 +233,6 @@ export function Viewer360Modal({
         )}
       </div>
 
-      {/* Timeline de visitas en el footer */}
       {allVisits.length > 1 && (
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -241,22 +243,13 @@ export function Viewer360Modal({
               return (
                 <button
                   key={v.id}
-                  onClick={() => {
-                    setCurrentIndex(reversedIdx);
-                    onChangeVisit(v);
-                  }}
+                  onClick={() => { setCurrentIndex(reversedIdx); onChangeVisit(v); }}
                   className={cn(
                     "flex-shrink-0 flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-all",
-                    isCurrent
-                      ? "bg-white/20 border border-white/40"
-                      : "hover:bg-white/10 border border-transparent"
+                    isCurrent ? "bg-white/20 border border-white/40" : "hover:bg-white/10 border border-transparent"
                   )}
                 >
-                  <img
-                    src={v.photo_url}
-                    alt=""
-                    className="w-12 h-8 object-cover rounded"
-                  />
+                  <img src={v.photo_url} alt="" className="w-12 h-8 object-cover rounded" />
                   <span className="text-white/70 text-[10px]">
                     {formatDate(v.taken_at, { day: "2-digit", month: "short" })}
                   </span>
