@@ -15,7 +15,8 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
+      {/* pt-14 compensa el top bar fijo en mobile; en desktop (md:) no hace falta */}
+      <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>
   );
 }
