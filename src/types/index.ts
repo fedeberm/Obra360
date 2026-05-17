@@ -60,13 +60,16 @@ export interface CameraPoint {
 }
 
 export interface GridCalibration {
-  cellSizeMeters: number;
   opacity: number;
-  // Spherical calibration — required for the grid to render
+  // Horizontal scale (calibrated with a known width)
+  metersPerRadH?: number;
+  // Vertical scale (calibrated with a known height)
+  metersPerRadV?: number;
+  // Legacy fields (kept for JSON compat, ignored)
+  cellSizeMeters?: number;
   metersPerRad?: number;
   anchorYaw?: number;
   anchorPitch?: number;
-  // Legacy pixel-based (deprecated, kept for JSON compat)
   pixelsPerMeter?: number;
 }
 
