@@ -167,17 +167,14 @@ export function Viewer360Modal({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Botón grilla */}
+          {/* Botón medición */}
           <button
-            onClick={() => {
-              if (!gridVisible) { setGridVisible(true); setShowGridPanel(true); }
-              else setShowGridPanel((v) => !v);
-            }}
+            onClick={() => setShowGridPanel((v) => !v)}
             className={cn(
               "p-2 rounded-lg transition-colors",
-              gridVisible ? "text-yellow-400 bg-white/10" : "text-white/70 hover:text-white hover:bg-white/10"
+              showGridPanel ? "text-yellow-400 bg-white/10" : "text-white/70 hover:text-white hover:bg-white/10"
             )}
-            title="Grilla de referencia (G)"
+            title="Herramienta de medición"
           >
             <Ruler className="w-4 h-4" />
           </button>
