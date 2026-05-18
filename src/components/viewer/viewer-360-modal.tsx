@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PhotoVisit, GridCalibration } from "@/types";
+import { PhotoVisit } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { GridOverlay360 } from "@/components/viewer/grid-overlay-360";
 import {
   X, ChevronLeft, ChevronRight, Calendar, MessageSquare,
-  Maximize2, Minimize2, RotateCcw, Ruler
+  Maximize2, Minimize2, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,27 +22,19 @@ export function Viewer360Modal({
 }: Viewer360ModalProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const psvRef = useRef<any>(null);
-  const [psv, setPsv] = useState<any>(null); // triggers re-render once viewer is ready
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(
     allVisits.findIndex((v) => v.id === visit.id)
   );
   const [loading, setLoading] = useState(true);
-  const [gridVisible, setGridVisible] = useState(false);
-  const [showGridPanel, setShowGridPanel] = useState(false);
-  const [calibration, setCalibration] = useState<GridCalibration | null>(
-    allVisits[allVisits.findIndex((v) => v.id === visit.id)]?.grid_calibration ?? null
-  );
 
   useEffect(() => {
-    let viewer: any = null;
-
     async function initViewer() {
       if (!viewerRef.current) return;
       try {
         const { Viewer } = await import("@photo-sphere-viewer/core");
         setLoading(true);
-        viewer = new Viewer({
+        const viewer = new Viewer({
           container: viewerRef.current,
           panorama: allVisits[currentIndex].photo_url,
           defaultZoomLvl: 50,
@@ -61,7 +51,7 @@ export function Viewer360Modal({
             loadError: "No se pudo cargar el panorama",
           } as any,
         });
-        viewer.addEventListener("ready", () => { setLoading(false); setPsv(viewer); }, { once: true });
+        viewer.addEventListener("ready", () => setLoading(false), { once: true });
         psvRef.current = viewer;
       } catch (err) {
         console.error("Error inicializando visor 360:", err);
@@ -84,19 +74,7 @@ export function Viewer360Modal({
     psvRef.current.setPanorama(allVisits[currentIndex].photo_url)
       .then(() => setLoading(false))
       .catch(() => setLoading(false));
-    setCalibration(allVisits[currentIndex]?.grid_calibration ?? null);
   }, [currentIndex]);
-
-  async function handleCalibrationSave(cal: GridCalibration) {
-    setCalibration(cal);
-    setGridVisible(true);
-    try {
-      const supabase = createClient();
-      await supabase.from("photo_visits").update({ grid_calibration: cal }).eq("id", allVisits[currentIndex].id);
-    } catch (err) {
-      console.error("Error guardando calibración:", err);
-    }
-  }
 
   function goPrev() {
     if (currentIndex < allVisits.length - 1) {
@@ -133,7 +111,6 @@ export function Viewer360Modal({
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft") goPrev();
       if (e.key === "ArrowRight") goNext();
-      if (e.key === "g" || e.key === "G") setGridVisible((v) => !v);
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -167,17 +144,6 @@ export function Viewer360Modal({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Botón medición */}
-          <button
-            onClick={() => setShowGridPanel((v) => !v)}
-            className={cn(
-              "p-2 rounded-lg transition-colors",
-              showGridPanel ? "text-yellow-400 bg-white/10" : "text-white/70 hover:text-white hover:bg-white/10"
-            )}
-            title="Herramienta de medición"
-          >
-            <Ruler className="w-4 h-4" />
-          </button>
           <button onClick={resetNorth} className="text-white/70 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors" title="Resetear vista">
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -193,17 +159,6 @@ export function Viewer360Modal({
       {/* Visor */}
       <div className="flex-1 relative">
         <div ref={viewerRef} className="w-full h-full" />
-
-        {/* Grid overlay */}
-        <GridOverlay360
-          visible={gridVisible}
-          showPanel={showGridPanel}
-          calibration={calibration}
-          viewer={psv}
-          onCalibrationSave={handleCalibrationSave}
-          onToggleGrid={() => setGridVisible((v) => !v)}
-          onClosePanel={() => setShowGridPanel(false)}
-        />
 
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
