@@ -62,12 +62,19 @@ export interface CameraPoint {
 export interface GridCalibration {
   opacity: number;
   /**
-   * Estimated distance (meters) from camera to the calibrated object.
-   * Derived as: D = physicalSize / (2 * tan(angularDist / 2))
-   * Measurement formula: meters = 2 * D * tan(measuredAngDist / 2)
+   * Estimated perpendicular distance (meters) from camera to the calibrated plane.
+   * Formula: D = physicalSize / (2 * tan(angularDist / 2))
+   *
+   * Measurement uses azimuth correction:
+   *   D_eff = D / cos(yaw_meas − yaw_calib)
+   *   meters = 2 * D_eff * tan(angDist / 2)
+   *
+   * This keeps height measurements consistent across the same wall.
    */
-  distanceH?: number; // from horizontal calibration
-  distanceV?: number; // from vertical calibration
+  distanceH?: number;  // D from horizontal calibration
+  yawH?: number;       // camera yaw at time of horizontal calibration (radians)
+  distanceV?: number;  // D from vertical calibration
+  yawV?: number;       // camera yaw at time of vertical calibration (radians)
   // Legacy fields (kept for JSON compat only)
   metersPerRadH?: number;
   metersPerRadV?: number;
