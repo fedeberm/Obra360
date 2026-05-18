@@ -61,13 +61,18 @@ export interface CameraPoint {
 
 export interface GridCalibration {
   opacity: number;
-  // Horizontal scale (calibrated with a known width)
+  /**
+   * Estimated distance (meters) from camera to the calibrated object.
+   * Derived as: D = physicalSize / (2 * tan(angularDist / 2))
+   * Measurement formula: meters = 2 * D * tan(measuredAngDist / 2)
+   */
+  distanceH?: number; // from horizontal calibration
+  distanceV?: number; // from vertical calibration
+  // Legacy fields (kept for JSON compat only)
   metersPerRadH?: number;
-  // Vertical scale (calibrated with a known height)
   metersPerRadV?: number;
-  // Legacy fields (kept for JSON compat, ignored)
-  cellSizeMeters?: number;
   metersPerRad?: number;
+  cellSizeMeters?: number;
   anchorYaw?: number;
   anchorPitch?: number;
   pixelsPerMeter?: number;
